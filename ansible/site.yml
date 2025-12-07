@@ -1,14 +1,62 @@
-- name: Desplegar servidor web
+- name: Desplegar servidor con FastAPI
   hosts: web
   become: true
+
+  vars:
+    app_path: /var/www/api
+
   tasks:
-    - name: Instalar Nginx
+
+    - name: Instalar dependencias del sistema
       apt:
-        name: nginx
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
         state: present
         update_cache: yes
 
-    - name: Subir sitio HTML
+    - name: Crear carpeta de la aplicación
+      file:
+        path: "{{ app_path }}"
+        state: directory
+
+    - name: Copiar aplicación FastAPI al servidor
       copy:
-        dest: /var/www/html/index.html
-        content: "<h1>Hola desde CI/CD + Ansible</h1>"
+        src: ../app/
+        dest: "{{ app_path }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Instalar dependencias de Python
+      pip:
+        requirements: "{{ app_path }}/requirements.txt"
+        executable: pip3
+
+    - name: Crear archivo de servicio systemd para FastAPI
+      copy:
+        dest: /etc/systemd/system/fastapi.service
+        content: |
+          [Unit]
+          Description=FastAPI Application
+          After=network.target
+
+          [Service]
+          User=root
+          WorkingDirectory={{ app_path }}
+          ExecStart=/usr/bin/python3 -m uvicorn app:app --host 0.0.0.0 --port 8000
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Recargar systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Iniciar servicio FastAPI
+      systemd:
+        name: fastapi
+        state: restarted
+        enabled: true

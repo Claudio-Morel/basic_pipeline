@@ -4,6 +4,7 @@
 
   vars:
     app_path: /var/www/api
+    venv_path: /var/www/api/venv
 
   tasks:
 
@@ -29,10 +30,13 @@
         group: root
         mode: '0755'
 
-    - name: Instalar dependencias de Python
-      pip:
-        requirements: "{{ app_path }}/requirements.txt"
-        executable: pip3
+    - name: Crear entorno virtual para FastAPI
+      command: python3 -m venv {{ venv_path }}
+      args:
+        creates: "{{ venv_path }}/bin/activate"
+
+    - name: Instalar dependencias dentro del entorno virtual
+      command: "{{ venv_path }}/bin/pip install -r {{ app_path }}/requirements.txt"
 
     - name: Crear archivo de servicio systemd para FastAPI
       copy:
@@ -45,7 +49,7 @@
           [Service]
           User=root
           WorkingDirectory={{ app_path }}
-          ExecStart=/usr/bin/python3 -m uvicorn app:app --host 0.0.0.0 --port 8000
+          ExecStart={{ venv_path }}/bin/uvicorn app:app --host 0.0.0.0 --port 8000
           Restart=always
 
           [Install]
